@@ -1,9 +1,18 @@
 <#
 
-AUTHOR: Tariq Jaber
+.SYNOPSIS
+    AADCHRep V1.0 PowerShell script.
+
+.DESCRIPTION
+    Azure AD Connect Health tool checks the requirments for Azure AD Connect Health agent and collects agent to help identifying and fixing most of the common AAD Connect Health agent issues.
+
+.AUTHOR:
+    Tariq Jaber
+
+.EXAMPLE
+    .\AADCHRep.ps1
 
 #>
-
     $global:ComputerName = $env:ComputerName
     $global:timeLocal = (Get-Date -Format yyyyMMdd_HHmm)
     $global:timeUTC =  [datetime]::Now.ToUniversalTime().ToString("yyyyMMdd_HHmm")
@@ -15,8 +24,9 @@ AUTHOR: Tariq Jaber
     $global:role_ADFS = Test-Path "HKLM:\SOFTWARE\Microsoft\ADHealthAgent\ADFS"
 
 #== Temp folder where files will be colected
-    #$global:Folder_name = "C:\temp"
-    $global:Folder_name = "C:\temp\AADCHReport"
+    $global:Folder_name = "C:\temp"
+    #$global:Folder_name = "C:\temp\AADCHReport"
+    $global:savedLogsPath =""
 
     $HTMLReport = @()
     $global:HTMLBody = @()
@@ -883,23 +893,37 @@ Write-Host 'Collecting AAD Connect Health agent log files' -ForegroundColor $out
             }
         }
 
-    #== Generate Archive file
-        $ArchiveName = $env:ComputerName+"_AgentLogs_"+$(Get-Date -Format yyyyMMdd_HHmmss)
-        $ArchiveNameUTC = $env:ComputerName + "_AgentLogs_" + [datetime]::Now.ToUniversalTime().ToString("yyyyMMdd_HHmmss")
-        $savedLogsPath = "$global:Folder_name\$ArchiveNameUTC.zip"
+        if ($Files.Count) 
+        {
+        #== Generate Archive file
+            $ArchiveName = $env:ComputerName+"_AgentLogs_"+$(Get-Date -Format yyyyMMdd_HHmmss)
+            $ArchiveNameUTC = $env:ComputerName + "_AgentLogs_" + [datetime]::Now.ToUniversalTime().ToString("yyyyMMdd_HHmmss")
+            $global:savedLogsPath = "$global:Folder_name\$ArchiveNameUTC.zip"
 
-    #== Un-comment following line to collect and compress the files
-        $Files | Compress-Archive -DestinationPath $savedLogsPath -Force
-        # Add in HTML Report details about Files (names) and the Archive File path
-
-
-        $global:HTMLBody += $global:LineBreaker 
-        $global:HTMLBody += "<b>Log files archived</b>"
-        $global:HTMLBody += $global:LineBreaker 
-        $global:HTMLBody += "<b>$savedLogsPath</b>"
-        $global:HTMLBody += $global:LineBreaker 
-        $global:HTMLBody += $global:LineBreaker 
-        $global:HTMLBody += $global:LineBreaker 
+            $Files | Compress-Archive -DestinationPath $savedLogsPath -Force
+            $global:HTMLBody += $global:LineBreaker 
+            $global:HTMLBody += "<b>Log files archived</b>"
+            $global:HTMLBody += $global:LineBreaker 
+            $global:HTMLBody += "<b>$savedLogsPath</b>"
+            $global:HTMLBody += $global:LineBreaker
+            $global:HTMLBody += $global:LineBreaker
+        }
+        else
+        {
+            $global:HTMLBody += $global:LineBreaker 
+            $global:HTMLBody += "<b>No log files found inside </b>"
+            $global:HTMLBody += $global:LineBreaker
+            $global:HTMLBody += "      " + $path
+            #If ($path -ne $PathFromReg) 
+#            {
+                $global:HTMLBody += $global:LineBreaker
+                $global:HTMLBody += " and " + $global:LineBreaker
+                $global:HTMLBody += $PathFromReg
+                $global:HTMLBody += $global:LineBreaker
+ #           }
+            $global:HTMLBody += $global:LineBreaker
+            $global:HTMLBody += $global:LineBreaker
+        }
 
     }
     catch
@@ -915,7 +939,7 @@ Write-Host 'Collecting AAD Connect Health agent log files' -ForegroundColor $out
 Function generateReport{	
     Write-Host 'Generating HTML Report' -ForegroundColor $outputColor
     Write-Verbose "Producing HTML report"
-    
+        
     $ReporTime = Get-Date
 
     $ReportTimeUTC =  [datetime]::Now.ToUniversalTime() #.ToString("yyyyMMdd_HHmm")
@@ -938,10 +962,13 @@ Function generateReport{
                     p {color: red;}
 				</style>
 				<body>
-				<h1>Server Info: $global:ComputerName</h1>
+				<h1>Server Name: $global:ComputerName</h1>
 				<h3>Generated Local: $reportime</h3>
                 <h3>Generated (UTC): $ReportTimeUTC</h3>"
-
+    
+    $global:HTMLBody += $LineBreaker
+    $global:HTMLBody += $LineBreaker
+    
     $htmltail = "</body>
 			</html>"
 
@@ -949,8 +976,15 @@ Function generateReport{
 
     $HTMLReport | Out-File $global:HTMLFile -Encoding Utf8
 
-    Write-host "Report generated:" -ForegroundColor Green
-    Write-host $global:HTMLFile -ForegroundColor Green
+    Write-host " "
+    Write-host "-------------------------------------------------------"
+    Write-host "Report generated:" -ForegroundColor Green -BackgroundColor Black 
+    Write-host $global:HTMLFile -ForegroundColor Green -BackgroundColor Black 
+
+    if($global:savedLogsPath)
+    {
+        Write-host $global:savedLogsPath -ForegroundColor Green -BackgroundColor Black 
+    }
 }
 
 #================================================================#
@@ -985,14 +1019,14 @@ Function Write-Log{
 
 Write-Host ''
 Write-Host '============================================='
-Write-Host ' ✪ Azure AD Connect Health Reporting Tool ✪  ' -ForegroundColor Green 
+Write-Host ' ✪ Azure AD Connect Health Reporting Tool ✪  ' -ForegroundColor Cyan 
 Write-Host '============================================='
 Write-Host ''
 
     AADCHRole 
     
     agentDetails
-#<#
+
     CSInfo 
 
     OSInfo     
@@ -1021,22 +1055,25 @@ Write-Host ''
     
     PerfCounters
     
-    #pageFiles
+    connectivityTest    
+  
+    collectLogs
+
+    pageFiles
     
-    #logicalDisk
+    logicalDisk
     
     softwareInfo
     
-    #hotfixes
+    hotfixes
     
-    #servicesInfo		
-    
-    connectivityTest    
-    
-    #collectLogs
-#>
+    servicesInfo
 
     generateReport	
 
+Write-Host ''
+Write-Host '============================================='
+Write-Host ' ✪         AADCHRep Tool completed         ✪  ' -ForegroundColor Cyan 
+Write-Host '============================================='
+Write-Host ''
 Write-Host "Please provide any feedback, comment or suggestion" -ForegroundColor Yellow
-
