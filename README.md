@@ -24,7 +24,7 @@ Azure AD Connect Health Reporting tool checks the requirements for Azure AD Conn
 * Check Proxy settings: bitsadmin Settings
 * Check Registry keys for: Encryption Algorithm 
 * Check Registry keys for: TLS 1.2 settings
-* Check required Root Certificate Autorities certificates
+* Check required Root Certificate Authorities certificates
 * Check performance counters
 * Running Connectivity Test
 * Collect AAD Connect Health agent log files
