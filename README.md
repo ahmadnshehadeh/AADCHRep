@@ -1,5 +1,5 @@
 # Azure AD Connect Health Reporting tool
-Azure AD Connect Health Reporting tool checks the requirments for Azure AD Connect Health agent and collects agent logs to help identifying and fixing most of the common AAD Connect Health agent issues.
+Azure AD Connect Health Reporting tool checks the requirements for Azure AD Connect Health agent and collects agent logs to help identifying and fixing most of the common AAD Connect Health agent issues.
 
 # Script requirements
 * You need to run the script using a user who is member of local administrators group.
