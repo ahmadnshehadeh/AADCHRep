@@ -25,7 +25,6 @@
 
 #== Temp folder where files will be colected
     $global:Folder_name = "C:\temp"
-    #$global:Folder_name = "C:\temp\AADCHReport"
     $global:savedLogsPath =""
 
     $HTMLReport = @()
@@ -304,8 +303,6 @@ Function Proxy_netsh{
     $global:HTMLBody += $SubHeader
     Try
     {
-        # netsh winhttp set proxy server:123
-        # netsh winhttp reset proxy 
         $netsh_winhttp = Invoke-Expression "netsh winhttp show proxy"
         $process = $true
         foreach($line in $netsh_winhttp) {if ($line.Contains("no proxy")) {$process = $false}}
@@ -431,7 +428,6 @@ Function encryptionAlgorithm{
 
 	    $reg = Get-ChildItem -Path "hklm:\SYSTEM\CurrentControlSet\Control\Cryptography\Configuration\Local\SSL\"
 	    foreach ($r in $reg){
-	        #$r.Name
 	        $functions = Get-ItemProperty -Path $r.PSPath | select -ExpandProperty Functions
             #$functions
             if ($functions -contains "RSA/SHA512") {$RSA_SHA512 = "Found"}
@@ -826,7 +822,6 @@ Function connectivityTest{
 
             $HTML_rep += "<tr style='background:#17202A; font-size:13px; font-family:Consolas,Tahoma; color:Lime'>"
                 $HTML_rep += "<td valign='top' '>"
-                    #$HTML_rep += "==========DATA=========="
                     Foreach ($line in $testResults_ADDS) { $HTML_rep += $line + $global:LineBreaker }
                 $HTML_rep += "</td>"
             $HTML_rep += "</tr>"
@@ -847,7 +842,6 @@ Function connectivityTest{
 
             $HTML_rep += "<tr style='background:#17202A; font-size:13px; font-family:Consolas,Tahoma; color:Lime'>"
                 $HTML_rep += "<td valign='top'>"
-                    #$HTML_rep += "==========DATA=========="
                     Foreach ($line in $testResults_ADFS) { $HTML_rep += $line + $global:LineBreaker }
                 $HTML_rep += "</td>"
             $HTML_rep += "</tr>"
@@ -875,11 +869,8 @@ Write-Host 'Collecting AAD Connect Health agent log files' -ForegroundColor $out
         $Folders = Get-ChildItem -Path $Path\* | where psiscontainer
         foreach($f in $Folders)
         {
-            #$f
            $Files += Get-ChildItem -Path $f\* -Include "ad*", "*Health_agent*" 
         }
-
-        #$Files | Compress-Archive -DestinationPath "C:\temp\$ArchiveName.zip" -Force
 
     #== Search in other possible folders
         $TemporaryInstallationLogPath  = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\ADHealthAgent\Sync").TemporaryInstallationLogPath 
@@ -888,7 +879,6 @@ Write-Host 'Collecting AAD Connect Health agent log files' -ForegroundColor $out
             $Folders = Get-ChildItem -Path $PathFromReg | where psiscontainer
             foreach($f in $Folders)
             {
-                #$f
                $Files += Get-ChildItem -Path $f\* -Include "ad*", "*Health_agent*" 
             }
         }
@@ -914,13 +904,13 @@ Write-Host 'Collecting AAD Connect Health agent log files' -ForegroundColor $out
             $global:HTMLBody += "<b>No log files found inside </b>"
             $global:HTMLBody += $global:LineBreaker
             $global:HTMLBody += "      " + $path
-            #If ($path -ne $PathFromReg) 
-#            {
+            If ($path -ne $PathFromReg) 
+            {
                 $global:HTMLBody += $global:LineBreaker
                 $global:HTMLBody += " and " + $global:LineBreaker
                 $global:HTMLBody += $PathFromReg
                 $global:HTMLBody += $global:LineBreaker
- #           }
+            }
             $global:HTMLBody += $global:LineBreaker
             $global:HTMLBody += $global:LineBreaker
         }
@@ -942,7 +932,7 @@ Function generateReport{
         
     $ReporTime = Get-Date
 
-    $ReportTimeUTC =  [datetime]::Now.ToUniversalTime() #.ToString("yyyyMMdd_HHmm")
+    $ReportTimeUTC =  [datetime]::Now.ToUniversalTime()
 
     #Common HTML head and styles
 	$htmlhead="<html>
@@ -987,29 +977,6 @@ Function generateReport{
     }
 }
 
-#================================================================#
-# General functions
-#================================================================#
-Function Write-Log{
-    [CmdletBinding()]
-    Param(
-        [Parameter(Mandatory=$False)]
-        [ValidateSet("INFO","WARN","ERROR","FATAL","DEBUG")]
-        [String] $Level = "INFO",
-
-        [Parameter(Mandatory=$True)]
-        [string] $Message,
-
-        [Parameter(Mandatory=$False)]
-        [string] $logfile = "AADCHRepTool.log"
-    )
-    if ($Message -eq " "){
-        Add-Content $logfile -Value " " -ErrorAction SilentlyContinue
-    }else{
-        $Date = (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss.fff')
-        Add-Content $logfile -Value "[$date] [$Level] $Message" -ErrorAction SilentlyContinue
-    }
-}
 
 ##################################################################
 #
