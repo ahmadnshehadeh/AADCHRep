@@ -25,18 +25,18 @@
 
 #== Temp folder where files will be colected
     $global:Folder_name = "C:\temp"
+												
     $global:savedLogsPath =""
 
     $HTMLReport = @()
     $global:HTMLBody = @()
     $global:HTMLFileUTC = $global:ComputerName + "_RequirementsCheck_" + [datetime]::Now.ToUniversalTime().ToString("yyyyMMdd_HHmmss")
     $global:HTMLFile = "$global:Folder_name\$global:HTMLFileUTC" + "_UTC.html"
-    
 
     $global:LineBreaker = "<br/>"
 
 #================================================================#
-# Checking AAD Heakth agent role(s)
+# Checking AAD Health agent role(s)
 #================================================================#
 Function AADCHRole {
     Write-Host 'Checking AAD Health agent role(s)' -ForegroundColor $outputColor
@@ -303,6 +303,8 @@ Function Proxy_netsh{
     $global:HTMLBody += $SubHeader
     Try
     {
+											
+									
         $netsh_winhttp = Invoke-Expression "netsh winhttp show proxy"
         $process = $true
         foreach($line in $netsh_winhttp) {if ($line.Contains("no proxy")) {$process = $false}}
@@ -428,6 +430,7 @@ Function encryptionAlgorithm{
 
 	    $reg = Get-ChildItem -Path "hklm:\SYSTEM\CurrentControlSet\Control\Cryptography\Configuration\Local\SSL\"
 	    foreach ($r in $reg){
+				 
 	        $functions = Get-ItemProperty -Path $r.PSPath | select -ExpandProperty Functions
             #$functions
             if ($functions -contains "RSA/SHA512") {$RSA_SHA512 = "Found"}
@@ -532,7 +535,7 @@ Function rootCA {
 #    Microsoft ECC Root Certificate Authority 2017	   999a64c37ff47d9fab95f14769891460eec4c3c5
 #
 #
-Write-Host 'Checking required Root Certificate Autorities certificates' -ForegroundColor $outputColor
+Write-Host 'Checking required Root Certificate Authorities certificates' -ForegroundColor $outputColor
     $SubHeader = "<h3>Required Root CA certificates</h3>"
     $global:HTMLBody += $SubHeader
 
@@ -822,6 +825,7 @@ Function connectivityTest{
 
             $HTML_rep += "<tr style='background:#17202A; font-size:13px; font-family:Consolas,Tahoma; color:Lime'>"
                 $HTML_rep += "<td valign='top' '>"
+															
                     Foreach ($line in $testResults_ADDS) { $HTML_rep += $line + $global:LineBreaker }
                 $HTML_rep += "</td>"
             $HTML_rep += "</tr>"
@@ -842,6 +846,7 @@ Function connectivityTest{
 
             $HTML_rep += "<tr style='background:#17202A; font-size:13px; font-family:Consolas,Tahoma; color:Lime'>"
                 $HTML_rep += "<td valign='top'>"
+															
                     Foreach ($line in $testResults_ADFS) { $HTML_rep += $line + $global:LineBreaker }
                 $HTML_rep += "</td>"
             $HTML_rep += "</tr>"
@@ -869,8 +874,11 @@ Write-Host 'Collecting AAD Connect Health agent log files' -ForegroundColor $out
         $Folders = Get-ChildItem -Path $Path\* | where psiscontainer
         foreach($f in $Folders)
         {
+			   
            $Files += Get-ChildItem -Path $f\* -Include "ad*", "*Health_agent*" 
         }
+
+																					 
 
     #== Search in other possible folders
         $TemporaryInstallationLogPath  = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\ADHealthAgent\Sync").TemporaryInstallationLogPath 
@@ -879,6 +887,7 @@ Write-Host 'Collecting AAD Connect Health agent log files' -ForegroundColor $out
             $Folders = Get-ChildItem -Path $PathFromReg | where psiscontainer
             foreach($f in $Folders)
             {
+				   
                $Files += Get-ChildItem -Path $f\* -Include "ad*", "*Health_agent*" 
             }
         }
