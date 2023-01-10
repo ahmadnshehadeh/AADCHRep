@@ -39,7 +39,7 @@
 # Checking AAD Heakth agent role(s)
 #================================================================#
 Function AADCHRole {
-    Write-Host 'Checking AAD Heakth agent role(s)' -ForegroundColor $outputColor
+    Write-Host 'Checking AAD Health agent role(s)' -ForegroundColor $outputColor
     $SubHeader = "<h3>AAD Connect Health Role(s)</h3>"
     $global:HTMLBody += $SubHeader
 
