@@ -1,71 +1,100 @@
-﻿
 <#
 
-AUTHOR: Tariq
+AUTHOR: Tariq Jaber
 
 #>
 
-##################
-# ///////////////   Refer to C:\Program Files\Microsoft Monitoring Agent\Agent\Troubleshooter
-# Check Licenses
-##################
+    $global:ComputerName = $env:ComputerName
+    $global:timeLocal = (Get-Date -Format yyyyMMdd_HHmm)
+    $global:timeUTC =  [datetime]::Now.ToUniversalTime().ToString("yyyyMMdd_HHmm")
+    $outputColor = "Green"
+    $global:TenantID = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\ADHealthAgent").TenantId
 
-#[cmdletbinding()]
-# Ref https://certification.comptia.org/it-career-news/post/view/2018/03/09/talk-tech-to-me-powershell-parameters-and-parameter-validation
-<#
-param(
-        [Parameter( Mandatory,HelpMessage='What is the role of this server 'Sync, ADDS, ADFS' ?')]
-        [string]$Role="Sync",
+    $global:role_Sync = Test-Path "HKLM:\SOFTWARE\Microsoft\ADHealthAgent\Sync"
+    $global:role_ADDS = Test-Path "HKLM:\SOFTWARE\Microsoft\ADHealthAgent\ADDS"
+    $global:role_ADFS = Test-Path "HKLM:\SOFTWARE\Microsoft\ADHealthAgent\ADFS"
 
-        [Parameter( Mandatory=$false)]
-        [string]$Par2
-
-      )
-
-#>
-
-# Check running as admin????
-
-
-    $ComputerName = $env:ComputerName
-    $timeLocal = (Get-Date -Format yyyyMMdd_HHmm)
-    $timeUTC =  [datetime]::Now.ToUniversalTime().ToString("yyyyMMdd_HHmm")
-
+#== Temp folder where files will be colected
+    #$global:Folder_name = "C:\temp"
+    $global:Folder_name = "C:\temp\AADCHReport"
 
     $HTMLReport = @()
-    $HTMLBody = @()
-    $HTMLFile = "$($ComputerName).html"
-    $LineBreaker = "<br/>"
+    $global:HTMLBody = @()
+    $global:HTMLFileUTC = $global:ComputerName + "_RequirementsCheck_" + [datetime]::Now.ToUniversalTime().ToString("yyyyMMdd_HHmmss")
+    $global:HTMLFile = "$global:Folder_name\$global:HTMLFileUTC" + "_UTC.html"
+    
 
+    $global:LineBreaker = "<br/>"
 
 #================================================================#
 # Checking AAD Heakth agent role(s)
 #================================================================#
-
+Function AADCHRole {
+    Write-Host 'Checking AAD Heakth agent role(s)' -ForegroundColor $outputColor
     $SubHeader = "<h3>AAD Connect Health Role(s)</h3>"
-    $HTMLBody += $SubHeader
+    $global:HTMLBody += $SubHeader
 
-    $role_Sync = Test-Path "HKLM:\SOFTWARE\Microsoft\ADHealthAgent\Sync"
-    $role_ADDS = Test-Path "HKLM:\SOFTWARE\Microsoft\ADHealthAgent\ADDS"
-    $role_ADFS = Test-Path "HKLM:\SOFTWARE\Microsoft\ADHealthAgent\ADFS"
+    $global:role_Sync = Test-Path "HKLM:\SOFTWARE\Microsoft\ADHealthAgent\Sync"
+    $global:role_ADDS = Test-Path "HKLM:\SOFTWARE\Microsoft\ADHealthAgent\ADDS"
+    $global:role_ADFS = Test-Path "HKLM:\SOFTWARE\Microsoft\ADHealthAgent\ADFS"
     
-    if($role_Sync) {$HTMLBody += "<h4>SYNC: AAD Connect Server</h4>"}
-    if($role_ADDS) {$HTMLBody += "<h4>ADDS: AD Directory Service</h4>"}
-    if($role_ADFS) {$HTMLBody += "<h4>ADFS: AD Federation Service</h4>"}
+    $global:HTMLBody += "<h4>Following role(s) detected:</h4>"
+    if($global:role_Sync) {$global:HTMLBody += "<b>SYNC: AAD Connect Server</b><br/>"}
+    if($global:role_ADDS) {$global:HTMLBody += "<b>ADDS: AD Directory Service</b><br/>"}
+    if($global:role_ADFS) {$global:HTMLBody += "<b>ADFS: AD Federation Service</b><br/>"}
     
+    $global:HTMLBody += "<h4>TenantID: $global:TenantID </h4>"
+
+}    
+
+
+#================================================================#
+# Collect Agent Details 
+#================================================================#
+Function agentDetails{
+    Write-Host 'Collecting agent details' -ForegroundColor $outputColor
+
+
+    $agentDetails=@()
+    if($global:role_Sync) {$agentDetails += Get-Item -Path "HKLM:\SOFTWARE\Microsoft\ADHealthAgent\Sync"}
+    if($global:role_ADDS) {$agentDetails += Get-Item -Path "HKLM:\SOFTWARE\Microsoft\ADHealthAgent\ADDS"}
+    if($global:role_ADFS) {$agentDetails += Get-Item -Path "HKLM:\SOFTWARE\Microsoft\ADHealthAgent\ADFS"}
+    
+    foreach($agent in $agentDetails)
+    {
+        $Role = $agent.Name | Split-Path -Leaf
+        $HTML_rep = ""
+        $HTML_rep += "<Table style='font-size:13px; font-family:Tahoma; border-style:solid #4472C4 1.5pt; white-space: pre;'>"
+            $HTML_rep += "<tr><td valign='top' style='background:#DEEAF6' colspan=2>"
+                    $HTML_rep += "<b><h4> -=-=-=( General Agent details from Registry: $Role  )=-=-=- </h4></b>"
+            $HTML_rep += "</td></tr>"
+            $HTML_rep += "<tr style=' font-size:13px; font-family:Consolas,Tahoma;'>"
+
+        Foreach($ItemProperty in $agent.GetValueNames())
+        {
+                $HTML_rep += "<td valign='top'>" + $ItemProperty +"</td>"
+                $HTML_rep += "<td valign='top'>" + $agent.GetValue($ItemProperty) + "</td></tr>"
+        }
+            $HTML_rep += "</tr>"
+        $HTML_rep += "</table>"
+        $global:HTMLBody += $HTML_rep
+        $global:HTMLBody += $LineBreaker
+    }
+
+}
     
 #================================================================#
 # Collect computer system information
 #================================================================#
-    
-    Write-Verbose "Collecting computer system information"
+Function CSInfo {
+    Write-Host 'Collecting computer system information' -ForegroundColor $outputColor
 
     $SubHeader = "<h3>Computer System Information</h3>"
-    $HTMLBody += $SubHeader
+    $global:HTMLBody += $SubHeader
     
     try
     {
-        $ServerInfo = Get-WmiObject Win32_ComputerSystem -ComputerName $ComputerName -ErrorAction STOP |
+        $ServerInfo = Get-WmiObject Win32_ComputerSystem -ComputerName $global:ComputerName -ErrorAction STOP |
             Select-Object Name,Manufacturer,Model,
                         @{Name='Physical Processors';Expression={$_.NumberOfProcessors}},
                         @{Name='Logical Processors';Expression={$_.NumberOfLogicalProcessors}},
@@ -75,31 +104,30 @@ param(
                         }},
                         DnsHostName,Domain
        
-       $HTMLBody += $ServerInfo | ConvertTo-Html -Fragment
-    # $HTMLBody += $LineBreaker
+       $global:HTMLBody += $ServerInfo | ConvertTo-Html -Fragment
+    # $global:HTMLBody += $global:LineBreaker
        
     }
     catch
     {
         Write-Warning $_.Exception.Message
-        $HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
-    # $HTMLBody += $LineBreaker
+        $global:HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
+    # $global:HTMLBody += $global:LineBreaker
     }
-
-
+}
 
 #================================================================#
 # Collect operating system information
 #================================================================#
-    
-    Write-Verbose "Collecting operating system information"
+Function OSInfo {    
+    Write-Host 'Collecting operating system information' -ForegroundColor $outputColor
 
     $SubHeader = "<h3>Operating System Information</h3>"
-    $HTMLBody += $SubHeader
+    $global:HTMLBody += $SubHeader
     
     try
     {
-        $OSInfo = Get-WmiObject Win32_OperatingSystem -ComputerName $ComputerName -ErrorAction STOP | 
+        $OSInfo = Get-WmiObject Win32_OperatingSystem -ComputerName $global:ComputerName -ErrorAction STOP | 
             Select-Object @{Name='Operating System';Expression={$_.Caption}},
                         @{Name='Architecture';Expression={$_.OSArchitecture}},
                         Version,Organization,
@@ -109,25 +137,24 @@ param(
                         }},
                         WindowsDirectory
 
-        $HTMLBody += $OSInfo | ConvertTo-Html -Fragment
-    # $HTMLBody += $LineBreaker
+        $global:HTMLBody += $OSInfo | ConvertTo-Html -Fragment
+    # $global:HTMLBody += $global:LineBreaker
     }
     catch
     {
         Write-Warning $_.Exception.Message
-        $HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
-    # $HTMLBody += $LineBreaker
+        $global:HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
+    # $global:HTMLBody += $global:LineBreaker
     }
-
-
-
+}
 
 #================================================================#
 # Collect .Net Version information
 #================================================================#
-
+Function dotNetVersion{
+    Write-Host 'Checking .Net Version' -ForegroundColor $outputColor
     $SubHeader = "<h3>.Net Version</h3>"
-    $HTMLBody += $SubHeader
+    $global:HTMLBody += $SubHeader
     $dotNetVersion = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full"
 
     $dotNetVersionRep = @()
@@ -136,30 +163,30 @@ param(
     $netVerObj | Add-Member NoteProperty -Name "Version" -Value $dotNetVersion.Version
     $dotNetVersionRep  += $netVerObj
 
-    $HTMLBody += $dotNetVersionRep | ConvertTo-Html -Fragment
-    # $HTMLBody += $LineBreaker 
+    $global:HTMLBody += $dotNetVersionRep | ConvertTo-Html -Fragment
+    # $global:HTMLBody += $global:LineBreaker 
+}
 
-
-        
 #================================================================#
 # Collect network interface information
 #================================================================#    
-
+Function NICInfo{
+    Write-Host 'Collecting network interface information' -ForegroundColor $outputColor     
     $SubHeader = "<h3>Network Interface Information</h3>"
-    $HTMLBody += $SubHeader
+    $global:HTMLBody += $SubHeader
 
     Write-Verbose "Collecting network interface information"
 
     try
     {
         $nics = @()
-        $nicinfo = @(Get-WmiObject Win32_NetworkAdapter -ComputerName $ComputerName -ErrorAction STOP | Where {$_.PhysicalAdapter} |
+        $nicinfo = @(Get-WmiObject Win32_NetworkAdapter -ComputerName $global:ComputerName -ErrorAction STOP | Where {$_.PhysicalAdapter} |
             Select-Object Name,AdapterType,MACAddress,
             @{Name='ConnectionName';Expression={$_.NetConnectionID}},
             @{Name='Enabled';Expression={$_.NetEnabled}},
             @{Name='Speed';Expression={$_.Speed/1000000}})
 
-        $nwinfo = Get-WmiObject Win32_NetworkAdapterConfiguration -ComputerName $ComputerName -ErrorAction STOP |
+        $nwinfo = Get-WmiObject Win32_NetworkAdapterConfiguration -ComputerName $global:ComputerName -ErrorAction STOP |
             Select-Object Description, DHCPServer,  
             @{Name='IpAddress';Expression={$_.IpAddress -join '; '}},  
             @{Name='IpSubnet';Expression={$_.IpSubnet -join '; '}},  
@@ -182,23 +209,24 @@ param(
             $nics += $nicObject
         }
 
-        $HTMLBody += $nics | ConvertTo-Html -Fragment
-    # $HTMLBody += $LineBreaker
+        $global:HTMLBody += $nics | ConvertTo-Html -Fragment
+    # $global:HTMLBody += $global:LineBreaker
     }
     catch
     {
         Write-Warning $_.Exception.Message
-        $HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
-    # $HTMLBody += $LineBreaker
+        $global:HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
+    # $global:HTMLBody += $global:LineBreaker
     }
-
+}
 
 #================================================================#
-# Collect Proxy Settings 
+# Collect AADCH Proxy Settings 
 #================================================================#		
-		
+Function Proxy_AADCH{
+    Write-Host 'Checking Proxy settings: Get-AzureADConnectHealthProxySettings' -ForegroundColor $outputColor
     $SubHeader = "<h3>Proxy Settings: Get-AzureADConnectHealthProxySettings</h3>"
-    $HTMLBody += $SubHeader
+    $global:HTMLBody += $SubHeader
     Try
     {
         # Set-AzureADConnectHealthProxySettings -NoProxy
@@ -215,23 +243,24 @@ param(
         $proxyObj | Add-Member NoteProperty -Name "Port" -Value $AADCHProxyRep.HttpsProxyAddress.Port
         $AADCHProxy  += $proxyObj
 
-        $HTMLBody += $AADCHProxy | ConvertTo-Html -Fragment
-        # $HTMLBody += $LineBreaker 
+        $global:HTMLBody += $AADCHProxy | ConvertTo-Html -Fragment
+        # $global:HTMLBody += $global:LineBreaker 
     }
     catch
     {
         Write-Warning $_.Exception.Message
-        $HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
-        # $HTMLBody += $LineBreaker
+        $global:HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
+        # $global:HTMLBody += $global:LineBreaker
     }
-
+}
    
 #================================================================#
 # Check IE Proxy Settings
 #================================================================#
-
+Function Proxy_IE{
+    Write-Host 'Checking Proxy settings: IE Settings' -ForegroundColor $outputColor
     $SubHeader = "<h3>Proxy Settings: IE</h3>"
-    $HTMLBody += $SubHeader
+    $global:HTMLBody += $SubHeader
     Try
     {
         $IEProxyReg = Get-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings'
@@ -245,23 +274,24 @@ param(
         $IEProxyObj | Add-Member NoteProperty -Name "Port" -Value ($IEProxyReg.ProxyServer -split ":")[1]
         $IEProxyRep += $IEProxyObj
 
-        $HTMLBody += $IEProxyRep | ConvertTo-Html -Fragment
-        # $HTMLBody += $LineBreaker 
+        $global:HTMLBody += $IEProxyRep | ConvertTo-Html -Fragment
+        # $global:HTMLBody += $global:LineBreaker 
     }
     catch
     {
         Write-Warning $_.Exception.Message
-        $HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
-        # $HTMLBody += $LineBreaker
+        $global:HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
+        # $global:HTMLBody += $global:LineBreaker
     }
-    
+}
 
 #================================================================#
 # Check netsh Proxy Settings
 #================================================================#
-
+Function Proxy_netsh{
+    Write-Host 'Checking Proxy settings: netsh Settings' -ForegroundColor $outputColor
     $SubHeader = "<h3>Proxy Settings: netsh</h3>"
-    $HTMLBody += $SubHeader
+    $global:HTMLBody += $SubHeader
     Try
     {
         # netsh winhttp set proxy server:123
@@ -284,24 +314,25 @@ param(
             $netshObj | Add-Member NoteProperty -Name "Bypass List" -Value ( $netsh_winhttp | select-string -pattern "Bypass List").ToString().Replace("Bypass List     :","" )
         }
         $netsh_winhttpRep += $netshObj
-        $HTMLBody += $netsh_winhttpRep | ConvertTo-Html -Fragment
-        # $HTMLBody += $LineBreaker 
+        $global:HTMLBody += $netsh_winhttpRep | ConvertTo-Html -Fragment
+        # $global:HTMLBody += $global:LineBreaker 
     }
     catch
     {
         Write-Warning $_.Exception.Message
-        $HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
-        # $HTMLBody += $LineBreaker
+        $global:HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
+        # $global:HTMLBody += $global:LineBreaker
     }
-
+}
 
 
 #================================================================#
 # Check machine.config Proxy Settings
 #================================================================#
-
+Function Proxy_machineConfig{
+    Write-Host 'Checking Proxy settings: machine.config file' -ForegroundColor $outputColor
     $SubHeader = "<h3>Proxy Settings: machine.config</h3>"
-    $HTMLBody += $SubHeader
+    $global:HTMLBody += $SubHeader
 
     Try
     {
@@ -310,29 +341,31 @@ param(
         $nodes = $machineconfig.ChildNodes.SelectNodes("/configuration/system.net/defaultProxy/proxy") | Sort -Unique
         $machineConfigProxy = @()
         $MCObj = New-Object PSObject
-        $MCObj | Add-Member NoteProperty -Name "UseSystemDefaultm" -Value $nodes.usesystemdefault
+        $MCObj | Add-Member NoteProperty -Name "UseSystemDefault" -Value $nodes.usesystemdefault
         $MCObj | Add-Member NoteProperty -Name "ProxyAddress" -Value $nodes.proxyaddress
         $MCObj | Add-Member NoteProperty -Name "BypassOnLocal" -Value $nodes.bypassonlocal
 
         $machineConfigProxy += $MCObj
-	    $HTMLBody += $machineConfigProxy | ConvertTo-Html -Fragment
-        # $HTMLBody += $LineBreaker     
+	    $global:HTMLBody += $machineConfigProxy | ConvertTo-Html -Fragment
+        # $global:HTMLBody += $global:LineBreaker     
 
     }
     catch
     {
         Write-Warning $_.Exception.Message
-        $HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
-        # $HTMLBody += $LineBreaker
+        $global:HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
+        # $global:HTMLBody += $global:LineBreaker
+}
 }
 
 #================================================================#
 # Check BITSAdmin Proxy Settings
 # Ref: https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/bitsadmin-util-and-getieproxy
 #================================================================#
-
+Function Proxy_BITSAdmin{
+    Write-Host 'Checking Proxy settings: bitsadmin Settings' -ForegroundColor $outputColor
     $SubHeader = "<h3>Proxy Settings: BITSAdmin</h3>"
-    $HTMLBody += $SubHeader
+    $global:HTMLBody += $SubHeader
     Try
     {
         $bitsadmin_LocalSys = Invoke-Expression "bitsadmin /util /getieproxy localsystem"
@@ -346,30 +379,41 @@ param(
         $bitsAdminObj | Add-Member NoteProperty -Name "Loca Service" -Value ($bitsadmin_LSvc | select-string -pattern "Proxy usage").ToString().Replace("Proxy usage:  ","")
         $BITSAdmin += $bitsAdminObj
 
-        $HTMLBody += $BITSAdmin | ConvertTo-Html -Fragment
-        # $HTMLBody += $LineBreaker 
+        $global:HTMLBody += $BITSAdmin | ConvertTo-Html -Fragment
+        # $global:HTMLBody += $global:LineBreaker 
     }
     catch
     {
         Write-Warning $_.Exception.Message
-        $HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
-        # $HTMLBody += $LineBreaker
+        $global:HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
+        # $global:HTMLBody += $global:LineBreaker
     }
+}
 
 #================================================================#
 # Adding note after proxy settings
 #================================================================#
-    $HTMLBody += $LineBreaker
-    $HTMLBody += "<b>* Empty table means no proxy settings found</b>"
+Function Proxy_Notes{
+    $global:HTMLBody += $global:LineBreaker
+    $global:HTMLBody += "<b>* Empty table(s) means no proxy settings found</b>"
+    
+    $global:HTMLBody += $global:LineBreaker
+    $global:HTMLBody += "<b>* Authenticated proxies (using HTTPBasic) are not supported </b>"
+    $global:HTMLBody += "<a href='https://learn.microsoft.com/en-us/azure/active-directory/hybrid/how-to-connect-health-agent-install#configure-azure-ad-connect-health-agents-to-use-http-proxy'>"
+    $global:HTMLBody += "<b>(Link)</b></a>"
 
-
+    $global:HTMLBody += $global:LineBreaker
+    $global:HTMLBody += "<b>** Check with your Network Security team if inline/transparent proxy is used in your environment</b>"
+    $global:HTMLBody += $global:LineBreaker
+}
 
 #================================================================#
 # Check Encryption Algorithm Settings
 #================================================================#
-
+Function encryptionAlgorithm{
+    Write-Host 'Checking Registry keys for: Encryption Algorithm ' -ForegroundColor $outputColor
     $SubHeader = "<h3>Encryption algorithms settings in registry</h3>"
-    $HTMLBody += $SubHeader
+    $global:HTMLBody += $SubHeader
     Try
     {    
         $RSA_SHA512 = "Missing"
@@ -392,27 +436,23 @@ param(
         $protocolsObj | Add-Member NoteProperty -Name "ECDSA/SHA512" -Value $ECDSA_SHA512
         $protocolsRep += $protocolsObj
 
-        $HTMLBody += $protocolsRep | ConvertTo-Html -Fragment
-        # $HTMLBody += $LineBreaker 
+        $global:HTMLBody += $protocolsRep | ConvertTo-Html -Fragment
+        # $global:HTMLBody += $global:LineBreaker 
     }
     catch
     {
         Write-Warning $_.Exception.Message
-        $HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
-        # $HTMLBody += $LineBreaker
+        $global:HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
+        # $global:HTMLBody += $global:LineBreaker
     }
-
+}
 
 
 #================================================================#
 # Check TLS 1.2 keys
+# https://docs.microsoft.com/en-us/azure/active-directory/hybrid/reference-connect-tls-enforcement#powershell-script-to-check-tls-12
 #================================================================#
-
-    $SubHeader = "<h3>TLS 1.2 registry values</h3>"
-    $HTMLBody += $SubHeader
-
-    Function Get-ADSyncToolsTls12RegValue
-    {
+Function Get-ADSyncToolsTls12RegValue {
         [CmdletBinding()]
         Param
         (
@@ -443,6 +483,11 @@ param(
         }
         $output
     }
+Function TLS12{
+    Write-Host 'Checking Registry keys for: TLS 1.2 settings' -ForegroundColor $outputColor
+    $SubHeader = "<h3>TLS 1.2 registry values</h3>"
+    $global:HTMLBody += $SubHeader
+
 
     $regSettings = @()
     $regKey = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\.NETFramework\v4.0.30319'
@@ -463,20 +508,94 @@ param(
 
     #$regSettings
 
-    $HTMLBody += $regSettings | ConvertTo-Html -Fragment
-    # $HTMLBody += $LineBreaker
+    
+    $global:HTMLBody += $regSettings | ConvertTo-Html -Fragment
+    # $global:HTMLBody += $global:LineBreaker
+}
 
+#================================================================#
+# Check required CA certificate as documented on
+# https://learn.microsoft.com/en-us/azure/security/fundamentals/tls-certificate-changes#what-changed
+#================================================================#
+Function rootCA {
+#    DigiCert Global Root G2                           df3c24f9bfd666761b268073fe06d1cc8d4f82a4
+#    DigiCert Global Root CA	                       a8985d3a65e5e5c4b2d7d66d40c6dd2fb19c5436
+#    Baltimore CyberTrust Root	                       d4de20d05e66fc53fe1a50882c78db2852cae474
+#    D-TRUST Root Class 3 CA 2 2009	                   58e8abb0361533fb80f79b1b6d29d3ff8d5f00f0
+#    Microsoft RSA Root Certificate Authority 2017	   73a5e64a3bff8316ff0edccc618a906e4eae4d74
+#    Microsoft ECC Root Certificate Authority 2017	   999a64c37ff47d9fab95f14769891460eec4c3c5
+#
+#
+Write-Host 'Checking required Root Certificate Autorities certificates' -ForegroundColor $outputColor
+    $SubHeader = "<h3>Required Root CA certificates</h3>"
+    $global:HTMLBody += $SubHeader
+
+    #$global:HTMLBody += $global:LineBreaker
+    $global:HTMLBody += "<b>Following is the list of required Root CA certificates thumbprints:</b>"
+
+
+    $requiredRootCAs = @(
+    "df3c24f9bfd666761b268073fe06d1cc8d4f82a4",
+    "a8985d3a65e5e5c4b2d7d66d40c6dd2fb19c5436",
+    "d4de20d05e66fc53fe1a50882c78db2852cae474",
+    "58e8abb0361533fb80f79b1b6d29d3ff8d5f00f0",
+    "73a5e64a3bff8316ff0edccc618a906e4eae4d74",
+    "999a64c37ff47d9fab95f14769891460eec4c3c5"
+    )
+
+     
+    $requiredRCARep = @()
+    foreach($rRCA in $requiredRootCAs)
+    {   
+        $requiredRCAObj = New-Object PSObject
+        $requiredRCAObj | Add-Member NoteProperty -Name "Thumbprint" -Value $rRCA
+        $requiredRCARep += $requiredRCAObj
+    }
+
+    $global:HTMLBody += $requiredRCARep | ConvertTo-Html -Fragment
+
+    # Extract hashes of "Trusted Root Certification Authorities" for the computer.
+    $computertrusted =@()
+    dir cert:\localmachine\root | foreach { $computertrusted += $_.Thumbprint.ToString()} 
+    $missingRootCA = Foreach ($ca in $requiredRootCAs) { if (!$computertrusted.Contains( $ca.ToUpper() ) ) { $ca } } 
+    
+    $missingRCARep = @()
+    foreach($mRCA in $missingRootCA)
+    {   
+        $missingRCAObj = New-Object PSObject
+        $missingRCAObj | Add-Member NoteProperty -Name "Thumbprint" -Value $mRCA
+        $missingRCARep += $missingRCAObj
+    }
+
+    If($missingRCARep.Count)
+    {
+        $global:HTMLBody += $global:LineBreaker 
+        $global:HTMLBody += "<b>Following Root CA certificate(s) thumbprints is/are missing </b>"
+        $global:HTMLBody += $missingRCARep | ConvertTo-Html -Fragment
+    }
+    else {
+        $global:HTMLBody += $global:LineBreaker 
+        $global:HTMLBody += "<b>There are no missing Root CA certificate </b>"
+        
+    }
+
+    $global:HTMLBody += $global:LineBreaker 
+    $global:HTMLBody += "<a href='https://learn.microsoft.com/en-us/azure/security/fundamentals/tls-certificate-changes#what-changed'>Ref: Azure TLS certificate changes</a>"
+    $global:HTMLBody += $global:LineBreaker 
+    # $global:HTMLBody += $global:LineBreaker 
+}
 
 
 #================================================================#
-# Check Performance Countes
+# Check Performance Counters
 #================================================================#
-
+Function PerfCounters{
+    Write-Host 'Checking performance counters' -ForegroundColor $outputColor
     $SubHeader = "<h3>Performance Counters</h3>"
-    $HTMLBody += $SubHeader
+    $global:HTMLBody += $SubHeader
 
     $perfCRep_sync = @()
-    if($role_Sync)
+    if($global:role_Sync)
     {   
         $perfCObj = New-Object PSObject
         $perfCObj | Add-Member NoteProperty -Name "Processor" -Value ([System.Diagnostics.PerformanceCounterCategory]::Exists("Processor"))
@@ -487,7 +606,7 @@ param(
     }
 
     $perfCRep_adds = @()
-    if($role_ADDS)
+    if($global:role_ADDS)
     {   
         $perfCObj = New-Object PSObject
         $perfCObj | Add-Member NoteProperty -Name "Processor" -Value ([System.Diagnostics.PerformanceCounterCategory]::Exists("Processor"))
@@ -500,165 +619,165 @@ param(
         $perfCRep_adds += $perfCObj    
     }
 
-    $HTMLBody += $perfCRep_sync | ConvertTo-Html -Fragment
-    $HTMLBody += $perfCRep_adds | ConvertTo-Html -Fragment
-    # $HTMLBody += $LineBreaker
+    $global:HTMLBody += $perfCRep_sync | ConvertTo-Html -Fragment
+    $global:HTMLBody += $perfCRep_adds | ConvertTo-Html -Fragment
+    # $global:HTMLBody += $global:LineBreaker
 
+}
 
-########## <#
 
 #================================================================#
 # Collect PageFile information
 #================================================================#
-
+Function pageFiles{
+    Write-Host 'More info: Checking Page files' -ForegroundColor $outputColor
     $SubHeader = "<h3>PageFile Information</h3>"
-    $HTMLBody += $SubHeader
+    $global:HTMLBody += $SubHeader
 
     Write-Verbose "Collecting PageFile information"
 
     try
     {
-        $PageFileInfo = Get-WmiObject Win32_PageFileUsage -ComputerName $ComputerName -ErrorAction STOP |
+        $PageFileInfo = Get-WmiObject Win32_PageFileUsage -ComputerName $global:ComputerName -ErrorAction STOP |
             Select-Object @{Name='PageFile Name';Expression={$_.Name}},
                         @{Name='Allocated Size (Mb)';Expression={$_.AllocatedBaseSize}}
 
-        $HTMLBody += $PageFileInfo | ConvertTo-Html -Fragment
-    # $HTMLBody += $LineBreaker
+        $global:HTMLBody += $PageFileInfo | ConvertTo-Html -Fragment
+    # $global:HTMLBody += $global:LineBreaker
     }
     catch
     {
         Write-Warning $_.Exception.Message
-        $HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
-    # $HTMLBody += $LineBreaker
+        $global:HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
+    # $global:HTMLBody += $global:LineBreaker
     }
-
+}
 
 
 #================================================================#
 # Collect logical disk information
 #================================================================#
-
-
+Function logicalDisk{
+    Write-Host 'More info: Checking Logical Disks' -ForegroundColor $outputColor
     $SubHeader = "<h3>Logical Disk Information</h3>"
-    $HTMLBody += $SubHeader
+    $global:HTMLBody += $SubHeader
 
     Write-Verbose "Collecting logical disk information"
 
     try
     {
-        $diskinfo = Get-WmiObject Win32_LogicalDisk -ComputerName $ComputerName -ErrorAction STOP | 
+        $diskinfo = Get-WmiObject Win32_LogicalDisk -ComputerName $global:ComputerName -ErrorAction STOP | 
             Select-Object DeviceID,FileSystem,VolumeName,
             @{Expression={$_.Size /1Gb -as [int]};Label="Total Size (GB)"},
             @{Expression={$_.Freespace / 1Gb -as [int]};Label="Free Space (GB)"}
 
-        $HTMLBody += $diskinfo | ConvertTo-Html -Fragment
-    # $HTMLBody += $LineBreaker
+        $global:HTMLBody += $diskinfo | ConvertTo-Html -Fragment
+    # $global:HTMLBody += $global:LineBreaker
     }
     catch
     {
         Write-Warning $_.Exception.Message
-        $HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
-    # $HTMLBody += $LineBreaker
+        $global:HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
+    # $global:HTMLBody += $global:LineBreaker
     }
-
-
+}
 
 
 #================================================================#
 # Collect software information
 #================================================================#
-
-
+Function softwareInfo{
+    Write-Host 'Checking installed softwares' -ForegroundColor $outputColor
     $SubHeader = "<h3>Software Information</h3>"
-    $HTMLBody += $SubHeader
+    $global:HTMLBody += $SubHeader
  
     Write-Verbose "Collecting software information"
         
     try
     {
-        $software = Get-WmiObject Win32_Product -ComputerName $ComputerName -ErrorAction STOP | Select-Object Vendor,Name,Version | Sort-Object Vendor,Name
+        $software = Get-WmiObject Win32_Product -ComputerName $global:ComputerName -ErrorAction STOP | Select-Object Vendor,Name,Version | Sort-Object Vendor,Name
         
-        $HTMLBody += $software | ConvertTo-Html -Fragment
-    # $HTMLBody += $LineBreaker 
+        $global:HTMLBody += $software | ConvertTo-Html -Fragment
+        # $global:HTMLBody += $global:LineBreaker 
         
     }
     catch
     {
         Write-Warning $_.Exception.Message
-        $HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
-    # $HTMLBody += $LineBreaker
+        $global:HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
+    # $global:HTMLBody += $global:LineBreaker
     }
-    
-    
+}
     
 #================================================================#
 # Collect Hotfixes
 #================================================================#
-
-
+Function hotfixes{
+Write-Host 'Checking installed Hotfixes' -ForegroundColor $outputColor
     $SubHeader = "<h3>Installed HotFixes</h3>"
-    $HTMLBody += $SubHeader
+    $global:HTMLBody += $SubHeader
     Try
     {
         $HotFixes = Get-hotfix | select-object -property Description,HotFixID,InstalledBy,InstalledOn | sort InstalledOn -Descending
-        $HTMLBody += $HotFixes | ConvertTo-Html -Fragment
-        # $HTMLBody += $LineBreaker 
+        $global:HTMLBody += $HotFixes | ConvertTo-Html -Fragment
+        # $global:HTMLBody += $global:LineBreaker 
     }
     catch
     {
         Write-Warning $_.Exception.Message
-        $HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
-        # $HTMLBody += $LineBreaker
+        $global:HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
+        # $global:HTMLBody += $global:LineBreaker
     }
-
+}
 
 #================================================================
 # Collect services information 
 #================================================================#
-		
+Function servicesInfo{	
+Write-Host 'Checking installed services' -ForegroundColor $outputColor	
     $SubHeader = "<h3>Computer Services Information</h3>"
-    $HTMLBody += $SubHeader
+    $global:HTMLBody += $SubHeader
 		
     Write-Verbose "Collecting services information"
 
     try
     {
-        $services = Get-WmiObject Win32_Service -ComputerName $ComputerName -ErrorAction STOP  | Select-Object Name,StartName,State,StartMode | Sort-Object Name
+        $services = Get-WmiObject Win32_Service -ComputerName $global:ComputerName -ErrorAction STOP  | Select-Object Name,StartName,State,StartMode | Sort-Object Name
 
-        $HTMLBody += $services | ConvertTo-Html -Fragment
-        # $HTMLBody += $LineBreaker 
+        $global:HTMLBody += $services | ConvertTo-Html -Fragment
+        # $global:HTMLBody += $global:LineBreaker 
         
     }
     catch
     {
         Write-Warning $_.Exception.Message
-        $HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
-        # $HTMLBody += $LineBreaker
+        $global:HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
+        # $global:HTMLBody += $global:LineBreaker
     }
-
-
+}
 
 #================================================================#
 # Run Connectivity test
 #================================================================#
-    
+Function connectivityTest{    
+    Write-Host 'Running Connectivity Test' -ForegroundColor $outputColor
     $SubHeader = "<h3>Test-AzureADConnectHealthConnectivity</h3>"
-    $HTMLBody += $SubHeader
+    $global:HTMLBody += $SubHeader
     
     $testResults_Sync = ""
-    if($role_Sync)
+    if($global:role_Sync)
     {
         $testResults_Sync = Test-AzureADConnectHealthConnectivity -Role sync
     }
     
     $testResults_ADDS = ""
-    if($role_ADDS)
+    if($global:role_ADDS)
     {
         $testResults_ADDS = Test-AzureADConnectHealthConnectivity -Role adds
     }
 
     $testResults_ADFS = ""
-    if($role_ADFS)
+    if($global:role_ADFS)
     {
         $testResults_ADFS = Test-AzureADConnectHealthConnectivity -Role adfs
     }
@@ -676,16 +795,14 @@ param(
             $HTML_rep += "<tr style='background:#17202A; font-size:13px; font-family:Consolas,Tahoma; color:Lime'>"
                 $HTML_rep += "<td valign='top'>"
                     #$HTML_rep += "==========DATA=========="
-                    Foreach ($line in $testResults_Sync) { $HTML_rep += $line + $LineBreaker }
+                    Foreach ($line in $testResults_Sync) { $HTML_rep += $line + $global:LineBreaker }
                 $HTML_rep += "</td>"
             $HTML_rep += "</tr>"
         $HTML_rep += "</table>"
-        $HTML_rep += $LineBreaker
+        $HTML_rep += $global:LineBreaker
 
-        $HTMLBody += $HTML_rep
+        $global:HTMLBody += $HTML_rep
 
-        #$HTMLBody += "<h4>==== Testing for Sync Role ====</h4>"
-        #Foreach ($line in $testResults_Sync) { $HTMLReport+= "<h4>Test-AzureADConnectHealthConnectivity -Role Sync</h4>"; $HTMLBody += $line + $LineBreaker }
     }
 
 
@@ -700,16 +817,14 @@ param(
             $HTML_rep += "<tr style='background:#17202A; font-size:13px; font-family:Consolas,Tahoma; color:Lime'>"
                 $HTML_rep += "<td valign='top' '>"
                     #$HTML_rep += "==========DATA=========="
-                    Foreach ($line in $testResults_ADDS) { $HTML_rep += $line + $LineBreaker }
+                    Foreach ($line in $testResults_ADDS) { $HTML_rep += $line + $global:LineBreaker }
                 $HTML_rep += "</td>"
             $HTML_rep += "</tr>"
         $HTML_rep += "</table>"
-        $HTML_rep += $LineBreaker
+        $HTML_rep += $global:LineBreaker
 
-        $HTMLBody += $HTML_rep
+        $global:HTMLBody += $HTML_rep
 
-        #$HTMLBody += "<h4>==== Testing for ADDS Role ====</h4>"
-        #Foreach ($line in $testResults_ADDS) { $HTMLReport+= "<h4>Test-AzureADConnectHealthConnectivity -Role ADDS</h4>"; $HTMLBody += $line + $LineBreaker }
     }
 
     if($testResults_ADFS) 
@@ -723,28 +838,82 @@ param(
             $HTML_rep += "<tr style='background:#17202A; font-size:13px; font-family:Consolas,Tahoma; color:Lime'>"
                 $HTML_rep += "<td valign='top'>"
                     #$HTML_rep += "==========DATA=========="
-                    Foreach ($line in $testResults_ADFS) { $HTML_rep += $line + $LineBreaker }
+                    Foreach ($line in $testResults_ADFS) { $HTML_rep += $line + $global:LineBreaker }
                 $HTML_rep += "</td>"
             $HTML_rep += "</tr>"
         $HTML_rep += "</table>"
-        $HTML_rep += $LineBreaker
+        $HTML_rep += $global:LineBreaker
 
-        $HTMLBody += $HTML_rep
+        $global:HTMLBody += $HTML_rep
 
-        #$HTMLBody += "<h4>==== Testing for ADFS Role ====</h4>"
-        #Foreach ($line in $testResults_ADFS) { $HTMLReport+= "<h4>Test-AzureADConnectHealthConnectivity -Role ADFS</h4>"; $HTMLBody += $line + $LineBreaker } 
     }
-  
-    #($testResults_Sync | Out-String).ToString() |  ConvertTo-Html -Fragment
-    # $HTMLBody += $LineBreaker 
+}
+
+#================================================================#
+# Collect agent log files
+#================================================================#
+Function collectLogs{
+Write-Host 'Collecting AAD Connect Health agent log files' -ForegroundColor $outputColor
+    $SubHeader = "<h3>Collecting agent log files - Required for troubleshooting</h3>"
+    $global:HTMLBody += $SubHeader
+
+    Try {
+    #== Check files in current logged in user Temp files
+        $Path = "$env:USERPROFILE\AppData\Local\Temp"
+        $Files = ""
+        $Files = Get-ChildItem -Path "$Path\*" -Include "ad*", "*Health_agent*" , "Str"
+        $Folders = Get-ChildItem -Path $Path\* | where psiscontainer
+        foreach($f in $Folders)
+        {
+            #$f
+           $Files += Get-ChildItem -Path $f\* -Include "ad*", "*Health_agent*" 
+        }
+
+        #$Files | Compress-Archive -DestinationPath "C:\temp\$ArchiveName.zip" -Force
+
+    #== Search in other possible folders
+        $TemporaryInstallationLogPath  = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\ADHealthAgent\Sync").TemporaryInstallationLogPath 
+        $PathFromReg = Split-Path $TemporaryInstallationLogPath  -Parent
+        If ($path -ne $PathFromReg) {
+            $Folders = Get-ChildItem -Path $PathFromReg | where psiscontainer
+            foreach($f in $Folders)
+            {
+                #$f
+               $Files += Get-ChildItem -Path $f\* -Include "ad*", "*Health_agent*" 
+            }
+        }
+
+    #== Generate Archive file
+        $ArchiveName = $env:ComputerName+"_AgentLogs_"+$(Get-Date -Format yyyyMMdd_HHmmss)
+        $ArchiveNameUTC = $env:ComputerName + "_AgentLogs_" + [datetime]::Now.ToUniversalTime().ToString("yyyyMMdd_HHmmss")
+        $savedLogsPath = "$global:Folder_name\$ArchiveNameUTC.zip"
+
+    #== Un-comment following line to collect and compress the files
+        $Files | Compress-Archive -DestinationPath $savedLogsPath -Force
+        # Add in HTML Report details about Files (names) and the Archive File path
 
 
-    
+        $global:HTMLBody += $global:LineBreaker 
+        $global:HTMLBody += "<b>Log files archived</b>"
+        $global:HTMLBody += $global:LineBreaker 
+        $global:HTMLBody += "<b>$savedLogsPath</b>"
+        $global:HTMLBody += $global:LineBreaker 
+        $global:HTMLBody += $global:LineBreaker 
+        $global:HTMLBody += $global:LineBreaker 
+
+    }
+    catch
+    {
+        Write-Warning $_.Exception.Message
+        $global:HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
+    }
+}
 
 #================================================================#
 # Generate the HTML report and output to file
 #================================================================#
-	
+Function generateReport{	
+    Write-Host 'Generating HTML Report' -ForegroundColor $outputColor
     Write-Verbose "Producing HTML report"
     
     $ReporTime = Get-Date
@@ -758,7 +927,7 @@ param(
 				    H1{font-size: 20px;}
 				    H2{font-size: 18px;}
 				    H3{font-size: 14px;font-weight: bold; color:blue}
-                    H4{font-size: 12px; }
+                    H4{font-size: 12px; color:blue}
 				    TABLE{border: 1px solid black; border-collapse: collapse; font-size: 8pt;}
 				    TH{border: 1px solid black; background: #dddddd; padding: 5px; color: #000000;}
 				    TD{border: 1px solid black; padding: 5px; }
@@ -769,195 +938,105 @@ param(
                     p {color: red;}
 				</style>
 				<body>
-				<h1>Server Info: $ComputerName</h1>
+				<h1>Server Info: $global:ComputerName</h1>
 				<h3>Generated Local: $reportime</h3>
                 <h3>Generated (UTC): $ReportTimeUTC</h3>"
 
     $htmltail = "</body>
 			</html>"
 
-    $HTMLReport = $htmlhead + $HTMLBody + $htmltail
+    $HTMLReport = $htmlhead + $global:HTMLBody + $htmltail
 
-    $HTMLReport | Out-File $HTMLFile -Encoding Utf8
+    $HTMLReport | Out-File $global:HTMLFile -Encoding Utf8
 
-
-
-
-##################################################################
-##################################################################
-#================================================================#
-#      Following part are for collecting ideas
-#      Script code stops running after this line.
-#================================================================#
-##################################################################
-##################################################################
-
-
-break
+    Write-host "Report generated:" -ForegroundColor Green
+    Write-host $global:HTMLFile -ForegroundColor Green
+}
 
 #================================================================#
-# Collect agent log files
+# General functions
 #================================================================#
+Function Write-Log{
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory=$False)]
+        [ValidateSet("INFO","WARN","ERROR","FATAL","DEBUG")]
+        [String] $Level = "INFO",
 
-#== Temp folder where files will be colected
-    $Folder_name = "C:\temp"
+        [Parameter(Mandatory=$True)]
+        [string] $Message,
 
-#== Check files in current logged in user Temp files
-    $Path = "$env:USERPROFILE\AppData\Local\Temp"
-    $Files = ""
-    $Files = Get-ChildItem -Path "$Path\*" -Include "ad*", "*Health_agent*" 
-    $Folders = Get-ChildItem -Path $Path\* | where psiscontainer
-    foreach($f in $Folders)
-    {
-        #$f
-       $Files += Get-ChildItem -Path $f\* -Include "ad*", "*Health_agent*" 
-    }
-
-    #$Files | Compress-Archive -DestinationPath "C:\temp\$ArchiveName.zip" -Force
-
-#== Search in other possible folders
-    $TemporaryInstallationLogPath  = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\ADHealthAgent\Sync").TemporaryInstallationLogPath 
-    $PathFromReg = Split-Path $TemporaryInstallationLogPath  -Parent
-    If ($path -ne $PathFromReg) {
-        $Folders = Get-ChildItem -Path $Path | where psiscontainer
-        foreach($f in $Folders)
-        {
-            #$f
-           $Files += Get-ChildItem -Path $f\* -Include "ad*", "*Health_agent*" 
-        }
-    }
-
-#== Generate Archive file
-    $ArchiveName = $env:ComputerName+"_AgentLogs_"+$(Get-Date -Format yyyyMMdd_HHmm)
-    $ArchiveNameUTC = $env:ComputerName + "_AgentLogs_" + [datetime]::Now.ToUniversalTime().ToString("yyyyMMdd_HHmm")
-
-#== Un-comment following line to collect and compress the files
-    #$Files | Compress-Archive -DestinationPath "$Folder_name\$ArchiveName.zip" -Force
-    # Add in HTML Report details about Files (names) and the Archive File path
-
-
-
-#================================================================#
-# Things to Collect to troubleshoot AADC Health issues
-#
-#
-#
-<#=========================================================#>
-# Completed items
-<#---------------------------------------------------------#>
-
-    #Server detaisl, IP name, HW
-    #-----------> Done
-
-    # Proxy settings from all , HA, IE, Netsh
-    #-----------> Done
-    # >> From  machine.config, get-azureadHAproxy, bitsadmin
-        Get-AzureAdConnectHealthProxySettings
-    #-----------> Done
-
-    # Winver
-    #-----------> Done
-
-    # Net version
-    #-----------> Done
-
-    #Encryption Algorithm
-    #-----------> Done
-
-    #TLS & SSL
-    #-----------> Done
-
-    #Perfcounters
-    #-----------> Done
-
-    #Installed updates KB
-    #-----------> Done
-
-
-<#---------------------------------------------------------#>
-# /end of Completed items
-<#=========================================================#>
-
-
-# Proxy from registration logs
-# if no proxy use PsExec to edit monitor.config insight...
-
-
-#agent Certificates
-
-#Run IE as system 
- #        psexec -s -i "c:\Program Files\Internet Explorer\iexplore.exe"
-
-
-# chek Memeory limit / OneNote "Health Agent Memory limit"
-
-#MSInfo
-
-
-
-
-Get-ItemProperty -Path "hklm:\SYSTEM\CurrentControlSet\Control\ProductOptions" 
-Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\ADHealthAgent"
-
-Test-AzureADConnectHealthConnectivity -Role sync
-
-
-break
-
-#################
-# Testing logs
-""
-
-# Get Installation Path
-mybreak
-Write-Host "Checking Health Agent installation path..." -ForegroundColor Yellow
-$role="Sync"
-Switch ($Role)
-{
-    Sync
-    {
-        Write-Host "Selected role is: " -ForegroundColor Green -NoNewline
-        Write-Host $Role -ForegroundColor Yellow
+        [Parameter(Mandatory=$False)]
+        [string] $logfile = "AADCHRepTool.log"
+    )
+    if ($Message -eq " "){
+        Add-Content $logfile -Value " " -ErrorAction SilentlyContinue
+    }else{
+        $Date = (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss.fff')
+        Add-Content $logfile -Value "[$date] [$Level] $Message" -ErrorAction SilentlyContinue
     }
 }
-$TemporaryInstallationLogPath = Get-ItemProperty -path HKLM:\SOFTWARE\Microsoft\ADHealthAgent\Sync -Name TemporaryInstallationLogPath
-$installationPath = Split-Path  $TemporaryInstallationLogPath.TemporaryInstallationLogPath
-Write-Host "AD Connect Agent installation path: " -ForegroundColor Green -NoNewline
-Write-Host $installationPath -ForegroundColor Yellow
 
-$Files = Get-ChildItem -Path $installationPath -Include "ad*", "*Health_agent*"
-$ArchiveName = $env:ComputerName+"_"+$(get-date -Format yyyyMMdd_hhmm)
-$Files | Compress-Archive -DestinationPath C:\temp\test.zip -Force
+##################################################################
+#
+#   Script starts running here
+#
+##################################################################
 
+Write-Host ''
+Write-Host '============================================='
+Write-Host ' ✪ Azure AD Connect Health Reporting Tool ✪  ' -ForegroundColor Green 
+Write-Host '============================================='
+Write-Host ''
 
+    AADCHRole 
+    
+    agentDetails
+#<#
+    CSInfo 
 
-#get-childitem -path HKLM:\SOFTWARE\Microsoft\ADHealthAgent\ -recurse -ErrorAction SilentlyContinue | Where-Object {$_.Name -like "*Netwrix*"}
-#get-childitem -path HKLM:\SOFTWARE\Microsoft\ADHealthAgent\Sync -recurse # | Where-Object {$_.Name -like "*installation*"}
+    OSInfo     
 
+    dotNetVersion
 
+    NICInfo     
+    
+    Proxy_AADCH
+    
+    Proxy_IE
+    
+    Proxy_netsh
+    
+    Proxy_machineConfig
+    
+    Proxy_BITSAdmin
+    
+    Proxy_Notes
+    
+    encryptionAlgorithm
+    
+    TLS12
+    
+    rootCA 
+    
+    PerfCounters
+    
+    #pageFiles
+    
+    #logicalDisk
+    
+    softwareInfo
+    
+    #hotfixes
+    
+    #servicesInfo		
+    
+    connectivityTest    
+    
+    #collectLogs
+#>
 
-# Get List of all domain controllers
-Get-ADComputer -Filter 'primarygroupid -eq "516"' -Properties Name,Operatingsystem,OperatingSystemVersion,IPv4Address | Sort-Object -Property Operatingsystem |
-Select-Object -Property Name,Operatingsystem,OperatingSystemVersion,IPv4Address
+    generateReport	
 
+Write-Host "Please provide any feedback, comment or suggestion" -ForegroundColor Yellow
 
-#start netsh trace
-    #Show message Do you want to collect NW Trace? 
-    $Folder_name = "C:\temp"
-    $netTraceFile = $Role + "_" + $ComputerName + "_netTrace_" + $timeUTC
-    $netTraceFile = $Folder_name + "\" + $netTraceFile + ".etl"
-    #Warning about collected MaxSize
-    Invoke-Expression "netsh trace start traceFile=$netTraceFile capture=yes maxsize=10240"
-    Sleep -Seconds 4
-
-    Invoke-Expression "ipconfig /flushdns"
-    Sleep -Seconds 1
-
-    Invoke-Expression "nbtstat -RR"
-
-    #Test / Register / Restart Service / ,,,,
-    #Test connectivity
-    # use Akos_healthAgentEndPoints.ps1
-
-    #Show message to repro the issue
-    #Invoke-Expression "netsh trace stop"
