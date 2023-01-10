@@ -40,4 +40,8 @@ Reports generated:
 * C:\temp\ServerName_AgentLogs_DATETIME.zip
 
 # User Experience
+* Script while running:
+
 ![image](https://user-images.githubusercontent.com/64084421/211571446-56904425-1093-4227-8622-8ae187d71c23.png)
+
+* For a sample generated report check [this sample report](https://github.com/tajaber/AADCHRep/blob/main/ServerName_RequirementsCheck_DATETIME_UTC.html.pdf) @ `https://github.com/tajaber/AADCHRep/blob/main/ServerName_RequirementsCheck_DATETIME_UTC.html.pdf`
