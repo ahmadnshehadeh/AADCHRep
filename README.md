@@ -42,7 +42,8 @@ Reports generated:
 # User Experience
 * Script while running:
 
-![image](https://user-images.githubusercontent.com/64084421/211587000-e0ed6989-ba87-4120-9e7f-19e842f54205.png)
+![image](https://user-images.githubusercontent.com/64084421/211793786-bec3449d-dd62-4e00-9b01-cee7da4a98f7.png)
+
 
 
 * For a sample generated report check [this sample report](https://github.com/tajaber/AADCHRep/blob/main/ServerName_RequirementsCheck_DATETIME_UTC.html.pdf) @ `https://github.com/tajaber/AADCHRep/blob/main/ServerName_RequirementsCheck_DATETIME_UTC.html.pdf`
