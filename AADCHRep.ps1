@@ -867,39 +867,30 @@ Write-Host 'Collecting AAD Connect Health agent log files' -ForegroundColor $out
     $global:HTMLBody += $SubHeader
 
     Try {
-    #== Check files in current logged in user Temp files
         $Path = "$env:USERPROFILE\AppData\Local\Temp"
-        $Files = ""
-        $Files = Get-ChildItem -Path "$Path\*" -Include "ad*", "*Health_agent*" , "Str"
-        $Folders = Get-ChildItem -Path $Path\* | where psiscontainer
-        foreach($f in $Folders)
-        {
-			   
-           $Files += Get-ChildItem -Path $f\* -Include "ad*", "*Health_agent*" 
-        }
+        $Files = @()
+        $Files = Get-ChildItem -Path "$Path\*" -Include "ad*", "*Health_agent*"
 
-																					 
-
-    #== Search in other possible folders
+        $Files_instLog = @()
         $TemporaryInstallationLogPath  = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\ADHealthAgent\Sync").TemporaryInstallationLogPath 
         $PathFromReg = Split-Path $TemporaryInstallationLogPath  -Parent
-        If ($path -ne $PathFromReg) {
-            $Folders = Get-ChildItem -Path $PathFromReg | where psiscontainer
-            foreach($f in $Folders)
-            {
-				   
-               $Files += Get-ChildItem -Path $f\* -Include "ad*", "*Health_agent*" 
-            }
+        If ($path -ne $PathFromReg) 
+        {
+            $Files_instLog = Get-ChildItem -Path $PathFromReg\* -Include "ad*", "*Health_agent*"
         }
 
-        if ($Files.Count) 
-        {
-        #== Generate Archive file
-            $ArchiveName = $env:ComputerName+"_AgentLogs_"+$(Get-Date -Format yyyyMMdd_HHmmss)
-            $ArchiveNameUTC = $env:ComputerName + "_AgentLogs_" + [datetime]::Now.ToUniversalTime().ToString("yyyyMMdd_HHmmss")
-            $global:savedLogsPath = "$global:Folder_name\$ArchiveNameUTC.zip"
+    #== Generate Archive file
+        $ArchiveName = $env:ComputerName+"_AgentLogs_"+$(Get-Date -Format yyyyMMdd_HHmmss)
+        $ArchiveNameUTC = $env:ComputerName + "_AgentLogs_" + [datetime]::Now.ToUniversalTime().ToString("yyyyMMdd_HHmmss")
+        $global:savedLogsPath = "$global:Folder_name\$ArchiveNameUTC.zip"
 
-            $Files | Compress-Archive -DestinationPath $savedLogsPath -Force
+        if ($Files.Count)         { $Files | Compress-Archive -DestinationPath $global:savedLogsPath -Force }
+        if ($Files_instLog.Count) { $Files_instLog | Compress-Archive -DestinationPath $global:savedLogsPath -Update }
+
+        $files_count = $Files.Count + $Files_instLog.Count 
+
+        if ($files_count) 
+        {
             $global:HTMLBody += $global:LineBreaker 
             $global:HTMLBody += "<b>Log files archived</b>"
             $global:HTMLBody += $global:LineBreaker 
