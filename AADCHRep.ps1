@@ -4,7 +4,7 @@
     AADCHRep V1.0 PowerShell script.
 
 .DESCRIPTION
-    Azure AD Connect Health tool checks the requirments for Azure AD Connect Health agent and collects agent to help identifying and fixing most of the common AAD Connect Health agent issues.
+    Azure AD Connect Health tool checks the requirments for Azure AD Connect Health agent logs and collects agent to help identifying and fixing most of the common AAD Connect Health agent issues.
 
 .AUTHOR:
     Tariq Jaber
