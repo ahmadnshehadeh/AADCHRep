@@ -12,6 +12,14 @@
 .EXAMPLE
     .\AADCHRep.ps1
 
+Version update
+    1.1 (current)
+    - Collecting MSInfo
+    - Collecting more details from registry
+
+    1.0
+    - Initial Version
+
 #>
     $global:ComputerName = $env:ComputerName
     $global:timeLocal = (Get-Date -Format yyyyMMdd_HHmm)
@@ -30,7 +38,7 @@
 
     $HTMLReport = @()
     $global:HTMLBody = @()
-    $global:HTMLFileUTC = $global:ComputerName + "_RequirementsCheck_" + [datetime]::Now.ToUniversalTime().ToString("yyyyMMdd_HHmmss")
+    $global:HTMLFileUTC = $global:ComputerName + "_RequirementsCheck_" + [datetime]::Now.ToUniversalTime().ToString("yyyyMMdd_HHmm")
     $global:HTMLFile = "$global:Folder_name\$global:HTMLFileUTC" + "_UTC.html"
 
     $global:LineBreaker = "<br/>"
@@ -52,8 +60,12 @@ Function AADCHRole {
     if($global:role_ADDS) {$global:HTMLBody += "<b>ADDS: AD Directory Service</b><br/>"}
     if($global:role_ADFS) {$global:HTMLBody += "<b>ADFS: AD Federation Service</b><br/>"}
     
-    $global:HTMLBody += "<h4>TenantID: $global:TenantID </h4>"
-
+    $global:HTMLBody += $LineBreaker
+    $global:HTMLBody += "<b>TenantID: $global:TenantID </b>"
+    $global:HTMLBody += $LineBreaker
+    $global:HTMLBody += "* Empty TenantID means Registration was not complete"
+    $global:HTMLBody += $LineBreaker
+    $global:HTMLBody += $LineBreaker
 }    
 
 
@@ -75,7 +87,7 @@ Function agentDetails{
         $HTML_rep = ""
         $HTML_rep += "<Table style='font-size:13px; font-family:Tahoma; border-style:solid #4472C4 1.5pt; white-space: pre;'>"
             $HTML_rep += "<tr><td valign='top' style='background:#DEEAF6' colspan=2>"
-                    $HTML_rep += "<b><h4> -=-=-=( General Agent details from Registry: $Role  )=-=-=- </h4></b>"
+                    $HTML_rep += "<b><h4> -=-=-=( ADHealthAgent details from Registry: $Role  )=-=-=- </h4></b>"
             $HTML_rep += "</td></tr>"
             $HTML_rep += "<tr style=' font-size:13px; font-family:Consolas,Tahoma;'>"
 
@@ -89,6 +101,25 @@ Function agentDetails{
         $global:HTMLBody += $HTML_rep
         $global:HTMLBody += $LineBreaker
     }
+
+    $Reg_MachineIdentity = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Microsoft Online\Reporting\MonitoringAgent").MachineIdentity
+    $Reg_MachineName = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Microsoft Online\Reporting\MonitoringAgent").MachineName
+
+    $HTML_rep = ""
+    $HTML_rep += "<Table style='font-size:13px; font-family:Tahoma; border-style:solid #4472C4 1.5pt; white-space: pre;'>"
+        $HTML_rep += "<tr><td valign='top' style='background:#DEEAF6' colspan=2>"
+                $HTML_rep += "<b><h4> -=-=-=( Microsoft Online\Reporting\MonitoringAgent details from Registry  )=-=-=- </h4></b>"
+        $HTML_rep += "</td></tr>"
+        $HTML_rep += "<tr style=' font-size:13px; font-family:Consolas,Tahoma;'>"
+            $HTML_rep += "<td valign='top'>" + "MachineIdentity" +"</td>"
+            $HTML_rep += "<td valign='top'>" + $Reg_MachineIdentity  + "</td></tr>"
+
+            $HTML_rep += "<td valign='top'>" + "MachineName" +"</td>"
+            $HTML_rep += "<td valign='top'>" + $Reg_MachineName  + "</td></tr>"
+        $HTML_rep += "</tr>"
+    $HTML_rep += "</table>"
+    $global:HTMLBody += $HTML_rep
+    $global:HTMLBody += $LineBreaker
 
 }
     
@@ -862,11 +893,30 @@ Function connectivityTest{
 # Collect agent log files
 #================================================================#
 Function collectLogs{
-Write-Host 'Collecting AAD Connect Health agent log files' -ForegroundColor $outputColor
+																						
     $SubHeader = "<h3>Collecting agent log files - Required for troubleshooting</h3>"
     $global:HTMLBody += $SubHeader
 
     Try {
+    #== Generate Archive file Name
+        $ArchiveName = $env:ComputerName+"_AgentLogs_"+$(Get-Date -Format yyyyMMdd_HHmm)
+        $ArchiveNameUTC = $env:ComputerName + "_AgentLogs_" + [datetime]::Now.ToUniversalTime().ToString("yyyyMMdd_HHmm")
+        $global:savedLogsPath = "$global:Folder_name\$ArchiveNameUTC.zip"
+
+    #== MSInfo
+        Write-Host 'Collecting MSInfo32 information. This will take some time to complete. Please wait...' -ForegroundColor $outputColor
+        $MSInfo32_fileUTC = $env:ComputerName + "_MSInfo32_" + [datetime]::Now.ToUniversalTime().ToString("yyyyMMdd_HHmm") + ".nfo"
+        Msinfo32 /nfo "$global:Folder_name\$MSInfo32_fileUTC" | Out-Null
+        If (Test-Path "$global:Folder_name\$MSInfo32_fileUTC") {
+            "$global:Folder_name\$MSInfo32_fileUTC" | Compress-Archive -DestinationPath $global:savedLogsPath -Force 
+            $global:HTMLBody += $global:LineBreaker
+            $global:HTMLBody += $global:LineBreaker 
+            $global:HTMLBody += "<b>MSinfo file collected</b>"
+            $global:HTMLBody += $global:LineBreaker
+            }
+    
+    #== Helath Agent log files
+    Write-Host 'Collecting AAD Connect Health agent log files' -ForegroundColor $outputColor
         $Path = "$env:USERPROFILE\AppData\Local\Temp"
         $Files = @()
         $Files = Get-ChildItem -Path "$Path\*" -Include "ad*", "*Health_agent*"
@@ -879,12 +929,12 @@ Write-Host 'Collecting AAD Connect Health agent log files' -ForegroundColor $out
             $Files_instLog = Get-ChildItem -Path $PathFromReg\* -Include "ad*", "*Health_agent*"
         }
 
-    #== Generate Archive file
-        $ArchiveName = $env:ComputerName+"_AgentLogs_"+$(Get-Date -Format yyyyMMdd_HHmmss)
-        $ArchiveNameUTC = $env:ComputerName + "_AgentLogs_" + [datetime]::Now.ToUniversalTime().ToString("yyyyMMdd_HHmmss")
-        $global:savedLogsPath = "$global:Folder_name\$ArchiveNameUTC.zip"
+							 
+																						  
+																														   
+																		 
 
-        if ($Files.Count)         { $Files | Compress-Archive -DestinationPath $global:savedLogsPath -Force }
+        if ($Files.Count)         { $Files | Compress-Archive -DestinationPath $global:savedLogsPath -Update }
         if ($Files_instLog.Count) { $Files_instLog | Compress-Archive -DestinationPath $global:savedLogsPath -Update }
 
         $files_count = $Files.Count + $Files_instLog.Count 
