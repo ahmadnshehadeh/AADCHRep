@@ -1,5 +1,17 @@
 ![visitor badge](https://visitor-badge.glitch.me/badge?page_id=AADCHRep)
 
+
+
+## Table of Contents
+
+
+- [Description](#azure-ad-connect-health-reporting-tool)
+- [Script requirements](#script-requirements)
+- [How to run the script](#how-to-run-the-script)
+- [What does AADCHRep do?](#what-does-aadchrep-do)
+- [User Experience](#user-experience)
+- [Versions Updates](#versions-updates)
+
 # Azure AD Connect Health Reporting tool
 Azure AD Connect Health Reporting tool checks the requirements for Azure AD Connect Health agent and collects agent logs to help identifying and fixing most of the common AAD Connect Health agent issues.
 
@@ -48,3 +60,11 @@ Reports generated:
 
 
 * For a sample generated report check [this sample report](https://github.com/tajaber/AADCHRep/blob/main/ServerName_RequirementsCheck_DATETIME_UTC.html.pdf) @ `https://github.com/tajaber/AADCHRep/blob/main/ServerName_RequirementsCheck_DATETIME_UTC.html.pdf`
+
+# Versions Updates
+    1.1 (current)
+    - Collecting MSInfo
+    - Collecting more details from registry
+
+    1.0
+    - Initial Version
