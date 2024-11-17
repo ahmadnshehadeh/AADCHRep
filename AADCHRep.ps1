@@ -1131,7 +1131,9 @@ Write-Host ''
     
     servicesInfo
 
-    generateReport	
+    checkExpiredCertificates
+
+    generateReport
 
 Write-Host ''
 Write-Host '============================================='
