@@ -220,7 +220,7 @@ Function NICInfo{
     try
     {
         $nics = @()
-        $nicinfo = @(Get-WmiObject Win32_NetworkAdapter -ComputerName $global:ComputerName -ErrorAction STOP | Where {$_.PhysicalAdapter} |
+        $nicinfo = @(Get-WmiObject Win32_NetworkAdapter -ComputerName $global:ComputerName -ErrorAction STOP | Where-Object {$_.PhysicalAdapter} |
             Select-Object Name,AdapterType,MACAddress,
             @{Name='ConnectionName';Expression={$_.NetConnectionID}},
             @{Name='Enabled';Expression={$_.NetEnabled}},
@@ -243,7 +243,7 @@ Function NICInfo{
             $nicObject | Add-Member NoteProperty -Name "Enabled" -Value $nic.Enabled
             $nicObject | Add-Member NoteProperty -Name "Speed (Mbps)" -Value $nic.Speed
         
-            $ipaddress = ($nwinfo | Where {$_.Description -eq $nic.Name}).IpAddress #-split ";"
+            $ipaddress = ($nwinfo | Where-Object {$_.Description -eq $nic.Name}).IpAddress #-split ";"
             $nicObject | Add-Member NoteProperty -Name "IPAddress" -Value $ipaddress
 
             $nics += $nicObject
@@ -376,9 +376,9 @@ Function Proxy_machineConfig{
 
     Try
     {
-	    [xml]$machineconfig = gc $env:windir\Microsoft.NET\Framework64\v4.0.30319\Config\machine.config
+	    [xml]$machineconfig = Get-Content $env:windir\Microsoft.NET\Framework64\v4.0.30319\Config\machine.config
         $nodes = ""
-        $nodes = $machineconfig.ChildNodes.SelectNodes("/configuration/system.net/defaultProxy/proxy") | Sort -Unique
+        $nodes = $machineconfig.ChildNodes.SelectNodes("/configuration/system.net/defaultProxy/proxy") | Sort-Object -Unique
         $machineConfigProxy = @()
         $MCObj = New-Object PSObject
         $MCObj | Add-Member NoteProperty -Name "UseSystemDefault" -Value $nodes.usesystemdefault
@@ -462,7 +462,7 @@ Function encryptionAlgorithm{
 	    $reg = Get-ChildItem -Path "hklm:\SYSTEM\CurrentControlSet\Control\Cryptography\Configuration\Local\SSL\"
 	    foreach ($r in $reg){
 				 
-	        $functions = Get-ItemProperty -Path $r.PSPath | select -ExpandProperty Functions
+	        $functions = Get-ItemProperty -Path $r.PSPath | Select-Object -ExpandProperty Functions
             #$functions
             if ($functions -contains "RSA/SHA512") {$RSA_SHA512 = "Found"}
             if ($functions -contains "ECDSA/SHA512") {$ECDSA_SHA512 = "Found"}
@@ -509,7 +509,7 @@ Function Get-ADSyncToolsTls12RegValue {
             $RegName
         )
         $regItem = Get-ItemProperty -Path $RegPath -Name $RegName -ErrorAction Ignore
-        $output = "" | select Path,Name,Value
+        $output = "" | Select-Object Path,Name,Value
         $output.Path = $RegPath
         $output.Name = $RegName
 
@@ -596,7 +596,7 @@ Write-Host 'Checking required Root Certificate Authorities certificates' -Foregr
 
     # Extract hashes of "Trusted Root Certification Authorities" for the computer.
     $computertrusted =@()
-    dir cert:\localmachine\root | foreach { $computertrusted += $_.Thumbprint.ToString()} 
+    Get-ChildItem cert:\localmachine\root | ForEach-Object { $computertrusted += $_.Thumbprint.ToString()} 
     $missingRootCA = Foreach ($ca in $requiredRootCAs) { if (!$computertrusted.Contains( $ca.ToUpper() ) ) { $ca } } 
     
     $missingRCARep = @()
@@ -758,7 +758,7 @@ Write-Host 'Checking installed Hotfixes' -ForegroundColor $outputColor
     $global:HTMLBody += $SubHeader
     Try
     {
-        $HotFixes = Get-hotfix | select-object -property Description,HotFixID,InstalledBy,InstalledOn | sort InstalledOn -Descending
+        $HotFixes = Get-hotfix | select-object -property Description,HotFixID,InstalledBy,InstalledOn | Sort-Object InstalledOn -Descending
         $global:HTMLBody += $HotFixes | ConvertTo-Html -Fragment
         # $global:HTMLBody += $global:LineBreaker 
     }
@@ -801,6 +801,7 @@ Write-Host 'Checking installed services' -ForegroundColor $outputColor
 #================================================================#
 Function connectivityTest{    
     Write-Host 'Running Connectivity Test' -ForegroundColor $outputColor
+    Import-Module "C:\Program Files\Microsoft Azure AD Connect Health Agent\Modules\AdHealthConfiguration\AdHealthConfiguration.psd1"
     $SubHeader = "<h3>Test-AzureADConnectHealthConnectivity</h3>"
     $global:HTMLBody += $SubHeader
     
@@ -899,7 +900,7 @@ Function collectLogs{
 
     Try {
     #== Generate Archive file Name
-        $ArchiveName = $env:ComputerName+"_AgentLogs_"+$(Get-Date -Format yyyyMMdd_HHmm)
+        #$ArchiveName = $env:ComputerName+"_AgentLogs_"+$(Get-Date -Format yyyyMMdd_HHmm)
         $ArchiveNameUTC = $env:ComputerName + "_AgentLogs_" + [datetime]::Now.ToUniversalTime().ToString("yyyyMMdd_HHmm")
         $global:savedLogsPath = "$global:Folder_name\$ArchiveNameUTC.zip"
 
@@ -915,7 +916,7 @@ Function collectLogs{
             $global:HTMLBody += $global:LineBreaker
             }
     
-    #== Helath Agent log files
+    #== Health Agent log files
     Write-Host 'Collecting AAD Connect Health agent log files' -ForegroundColor $outputColor
         $Path = "$env:USERPROFILE\AppData\Local\Temp"
         $Files = @()
@@ -970,6 +971,50 @@ Function collectLogs{
     {
         Write-Warning $_.Exception.Message
         $global:HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
+    }
+}
+
+#================================================================#
+# Check local machine certs
+#================================================================#
+
+function checkExpiredCertificates {
+    Write-Host 'Checking expired local machine certificates ' -ForegroundColor $outputColor
+    $SubHeader = "<h3>TLS 1.2 registry values</h3>"
+    $global:HTMLBody += $SubHeader
+   
+    
+    try {
+        [int] $expirationDays = 60
+
+        # PowerShell 5 - Get the LocalMachine certs that are expired or about to expire in <$expirationDays>
+        $certs = Get-ChildItem -path cert:\LocalMachine\My | Where-Object NotAfter -lt ((Get-Date).AddDays($expirationDays))
+
+        # Export certs to file (offline analysis)
+        $certs | Export-Clixml "C:\temp\localMachineCerts_$($env:computername).xml"
+        
+        # Import cert from file (offline analysis)
+        $certs | Import-Clixml "C:\temp\localMachineCerts_<tab>"
+        
+        # List LocalMachine certs that are expired or about to expire in 60 days
+        $certs | Select-Object Issuer, NotAfter, Subject | Sort-Object NotAfter -Descending
+
+        if($certs.count -gt 0){
+            # Show Certs count
+            $global:HTMLBody += "<h3>$($certs.count) expired or about to expire in $expirationDays days.</h3>"
+            $global:HTMLBody += $certs | ConvertTo-Html -Fragment
+
+        } 
+        else {
+            Write-host "No certificates expired or about to expire in $expirationDays days."
+            $global:HTMLBody += "No certificates expired or about to expire in $expirationDays days."
+        }
+
+    }
+
+    catch {
+     Write-Warning $_.Exception.Message
+    $global:HTMLBody += "<p>Somthing went wrong. $($_.Exception.Message)</p>"
     }
 }
 
