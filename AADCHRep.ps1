@@ -978,9 +978,9 @@ Function collectLogs{
 # Check local machine certs
 #================================================================#
 
-function checkExpiredCertificates {
-    Write-Host 'Checking expired local machine certificates ' -ForegroundColor $outputColor
-    $SubHeader = "<h3>TLS 1.2 registry values</h3>"
+function checkLocalMachineCertificates {
+    Write-Host 'Checking local machine certificates' -ForegroundColor $outputColor
+    $SubHeader = "<h3>Expired or near-expiry local machine certificates</h3>"
     $global:HTMLBody += $SubHeader
    
     
@@ -1001,13 +1001,13 @@ function checkExpiredCertificates {
 
         if($certs.count -gt 0){
             # Show Certs count
-            $global:HTMLBody += "<h3>$($certs.count) expired or about to expire in $expirationDays days.</h3>"
+            $global:HTMLBody += "<h3>$($certs.count) LocalMachine certificates expired or about to expire in $expirationDays days.</h3>"
             $global:HTMLBody += $certs | ConvertTo-Html -Fragment
 
         } 
         else {
-            Write-host "No certificates expired or about to expire in $expirationDays days."
-            $global:HTMLBody += "No certificates expired or about to expire in $expirationDays days."
+            #Write-host "No certificates expired or about to expire in $expirationDays days."
+            $global:HTMLBody += "No LocalMachine certificates expired or about to expire in $expirationDays days."
         }
 
     }
@@ -1131,7 +1131,7 @@ Write-Host ''
     
     servicesInfo
 
-    checkExpiredCertificates
+    checkLocalMachineCertificates
 
     generateReport
 
